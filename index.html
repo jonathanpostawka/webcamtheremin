@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Advanced Web Theremin</title>
+    
+    <!-- Bootstrap CSS for Responsive Design and Styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Tone.js for Advanced Audio Synthesis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    
+    <!-- Mediapipe Hands for Hand Tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    
+    <!-- Custom Styles -->
+    <style>
+        /* General Styles */
+        body {
+            background-color: #121212; /* Dark background for better contrast */
+            color: #ffffff; /* White text for readability */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern, clean font */
+            margin: 0;
+            padding: 0;
+            /* overflow: hidden; */ /* Removed to allow scrolling */
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-top: 20px;
+            text-align: center;
+            color: #00FF00; /* Green color for the title */
+        }
+
+        .container {
+            max-width: 1200px; /* Limit container width for better readability */
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh; /* Ensure container takes full viewport height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Start Button Styling */
+        #startButton {
+            margin: 20px 0;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background-color: #00FF00;
+            color: #000000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        #startButton:hover {
+            background-color: #00FFFF;
+            transform: scale(1.05);
+        }
+
+        /* Video and Visualizer Styling */
+        .video-visualizer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px; /* Limit video width */
+            aspect-ratio: 16 / 9; /* Maintain aspect ratio */
+            background-color: #000000; /* Black background when video is not loaded */
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1); /* Invert the camera feed */
+        }
+
+        canvas#canvas {
+            pointer-events: none; /* Allow clicks to pass through to the video element */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #00FF00; /* Green border to distinguish canvas */
+            border-radius: 10px;
+        }
+
+        /* Visualizer Styling */
+        .visualizer-card {
+            width: 100%;
+            max-width: 640px;
+            background-color: #1e1e1e; /* Match card background */
+            border: none; /* Remove default card borders */
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+        }
+
+        #visualizer {
+            width: 100%;
+            height: 100px; /* Reduced height for a smaller visualizer */
+            background-color: #1e1e1e; /* Match card background */
+            border-radius: 10px;
+            border: 2px solid #00FF00; /* Green border for visibility */
+        }
+
+        /* Audio Controls Styling */
+        .controls-container {
+            width: 100%;
+            max-width: 640px;
+            background-color: #1e1e1e; /* Slightly lighter dark background for cards */
+            border: none; /* Remove default card borders */
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .controls-container .form-label {
+            color: #ffffff; /* White labels for form controls */
+        }
+
+        .controls-container .form-select, .controls-container .form-range {
+            background-color: #2c2c2c; /* Dark background for form controls */
+            color: #ffffff; /* White text */
+            border: 1px solid #444444; /* Dark borders */
+            border-radius: 5px; /* Rounded corners */
+        }
+
+        .controls-container .form-select:focus, .controls-container .form-range:focus {
+            outline: none;
+            box-shadow: 0 0 5px #00FF00; /* Green glow on focus */
+            border-color: #00FF00; /* Green border on focus */
+        }
+
+        .controls-container .form-check-label {
+            color: #ffffff; /* White labels for checkboxes */
+        }
+
+        #smoothingValue {
+            margin-left: 10px;
+            font-weight: bold;
+            color: #00FF00; /* Green text to highlight the value */
+        }
+
+        /* Display Elements */
+        #frequency, #filterCutoff {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+            color: #00FFFF; /* Cyan color for displays */
+        }
+
+        #frequency::before {
+            content: "🎵 "; /* Music note icon */
+        }
+
+        #filterCutoff::before {
+            content: "🎛️ "; /* Control knob icon */
+        }
+
+        /* Instructions Modal */
+        .modal-header {
+            background-color: #1e1e1e;
+            color: #00FF00;
+        }
+
+        .modal-body {
+            background-color: #2c2c2c;
+            color: #ffffff;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            #visualizer {
+                height: 80px; /* Further reduce height on smaller screens */
+            }
+
+            .controls-container {
+                padding: 15px;
+            }
+
+            video, canvas#canvas, #visualizer {
+                width: 100%;
+                height: auto;
+            }
+
+            #startButton, .controls-container {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 576px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            #startButton {
+                width: 90%;
+                font-size: 1rem;
+                padding: 10px 20px;
+            }
+
+            .controls-container {
+                padding: 10px;
+            }
+
+            #visualizer {
+                height: 70px;
+            }
+        }
+
+        /* Additional Styles */
+        .form-check-input:checked {
+            background-color: #00FF00;
+            border-color: #00FF00;
+        }
+
+        /* Tooltip Styles */
+        .tooltip-inner {
+            background-color: #333333;
+            color: #ffffff;
+            border: 1px solid #00FF00;
+        }
+
+        .tooltip.bs-tooltip-top .tooltip-arrow::before,
+        .tooltip.bs-tooltip-bottom .tooltip-arrow::before,
+        .tooltip.bs-tooltip-left .tooltip-arrow::before,
+        .tooltip.bs-tooltip-right .tooltip-arrow::before {
+            border-color: #333333;
+        }
+
+        /* High contrast for focus states */
+        button:focus, select:focus, input:focus {
+            outline: 2px dashed #00FF00;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Advanced Web Theremin</h1>
+
+        <!-- Start Button -->
+        <button id="startButton" class="btn btn-success" aria-label="Start Theremin" tabindex="0">Start Theremin</button>
+
+        <!-- Video and Visualizer Container -->
+        <div class="video-visualizer-container d-none" id="thereminContainer">
+            <!-- Video and Canvas -->
+            <div class="video-container">
+                <video id="video" autoplay playsinline aria-label="Webcam Feed"></video>
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <!-- Visualizer -->
+            <div class="visualizer-card">
+                <canvas id="visualizer" aria-label="Audio Visualizer"></canvas>
+            </div>
+
+            <!-- Audio Controls -->
+            <div class="controls-container">
+                <!-- Waveform Selection -->
+                <div>
+                    <label for="waveform" class="form-label">Waveform</label>
+                    <select id="waveform" class="form-select" aria-labelledby="waveformLabel">
+                        <option value="sine">Sine</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="sawtooth">Sawtooth</option>
+                    </select>
+                </div>
+
+                <!-- Instrument Selection -->
+                <div>
+                    <label for="instrument" class="form-label">Instrument</label>
+                    <select id="instrument" class="form-select" aria-labelledby="instrumentLabel">
+                        <option value="synth">Synth</option>
+                        <option value="amSynth">AM Synth</option>
+                        <option value="fmsynth">FM Synth</option>
+                        <option value="membraneSynth">Membrane Synth</option>
+                        <option value="metalSynth">Metal Synth</option>
+                        <option value="monoSynth">Mono Synth</option>
+                    </select>
+                </div>
+
+                <!-- Scale Selection -->
+                <div>
+                    <label for="scale" class="form-label">Scale</label>
+                    <select id="scale" class="form-select" aria-labelledby="scaleLabel">
+                        <option value="none">None</option>
+                        <option value="major">Major</option>
+                        <option value="minor">Minor</option>
+                        <option value="pentatonic">Pentatonic</option>
+                        <option value="chromatic">Chromatic</option>
+                    </select>
+                </div>
+
+                <!-- Frequency Range Selection -->
+                <div>
+                    <label for="freqRange" class="form-label">Frequency Range (Hz)</label>
+                    <div class="d-flex">
+                        <label for="minFreq" class="visually-hidden">Minimum Frequency</label>
+                        <input type="number" class="form-control me-2" id="minFreq" placeholder="Min" min="20" max="20000" value="200" aria-label="Minimum Frequency" required>
+                        <label for="maxFreq" class="visually-hidden">Maximum Frequency</label>
+                        <input type="number" class="form-control" id="maxFreq" placeholder="Max" min="20" max="20000" value="2000" aria-label="Maximum Frequency" required>
+                    </div>
+                </div>
+
+                <!-- Smoothing Factor -->
+                <div>
+                    <label for="smoothing" class="form-label">Smoothing Factor</label>
+                    <div class="d-flex align-items-center">
+                        <input type="range" class="form-range" id="smoothing" min="0" max="1" step="0.05" value="0.2" aria-labelledby="smoothingLabel">
+                        <span id="smoothingValue">0.20</span>
+                    </div>
+                </div>
+
+                <!-- Multi-Hand Mode Toggle -->
+                <div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="toggleMultiHand">
+                        <label class="form-check-label" for="toggleMultiHand">
+                            Enable Multi-Hand Mode
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Effects Toggle -->
+                <div>
+                    <label class="form-label">Effects</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="toggleReverb">
+                        <label class="form-check-label" for="toggleReverb">
+                            Enable Reverb
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="toggleDelay">
+                        <label class="form-check-label" for="toggleDelay">
+                            Enable Delay
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="toggleFilter">
+                        <label class="form-check-label" for="toggleFilter">
+                            Enable Low-Pass Filter
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Display Frequency and Filter Cutoff -->
+                <div>
+                    <p id="frequency" class="mb-1">Frequency: 440 Hz</p>
+                    <p id="filterCutoff">Filter Cutoff: 1000 Hz</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Button -->
+        <button type="button" class="btn btn-info mt-3" data-bs-toggle="modal" data-bs-target="#instructionsModal">
+            How to Use
+        </button>
+
+        <!-- Instructions Modal -->
+        <div class="modal fade" id="instructionsModal" tabindex="-1" aria-labelledby="instructionsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content bg-dark text-white">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="instructionsModalLabel">How to Use</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            Welcome to the Advanced Web Theremin! Follow these steps to start making music:
+                        </p>
+                        <ol>
+                            <li>
+                                <strong>Allow Webcam Access:</strong> Click the "Start Theremin" button above. When prompted, grant the browser permission to access your webcam. Ensure your hands are clearly visible in the video feed for accurate tracking.
+                            </li>
+                            <li>
+                                <strong>Adjust Audio Controls:</strong>
+                                <ul>
+                                    <li><strong>Waveform:</strong> Select the desired oscillator waveform to change the tone of the sound.</li>
+                                    <li><strong>Instrument:</strong> Choose from various synthesizer types to alter the sound's character.</li>
+                                    <li><strong>Scale:</strong> Select a musical scale to quantize the frequencies, ensuring harmonious sound generation.</li>
+                                    <li><strong>Frequency Range:</strong> Set the minimum and maximum frequency boundaries (in Hz) to define the pitch range of the theremin.</li>
+                                    <li><strong>Smoothing Factor:</strong> Adjust the smoothing to control how gradually the sound responds to your hand movements.</li>
+                                    <li><strong>Multi-Hand Mode:</strong> Toggle to enable or disable controlling multiple synths with multiple hands.</li>
+                                    <li><strong>Effects:</strong> Toggle Reverb, Delay, and Low-Pass Filter to enhance the sound.</li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Control the Theremin:</strong>
+                                <ul>
+                                    <li><strong>Frequency:</strong> Move your <em>index finger</em> horizontally within the webcam frame to adjust the pitch of the sound.</li>
+                                    <li><strong>Filter Cutoff:</strong> Move your <em>middle finger</em> vertically within the webcam frame to adjust the filter cutoff frequency, altering the brightness or darkness of the sound.</li>
+                                    <li><strong>Filter Toggle:</strong> Use your <em>thumb</em> to enable or disable the low-pass filter for warmer tones.</li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Visual Feedback:</strong> Watch the visualizer to see real-time frequency changes and the canvas to observe hand tracking.
+                            </li>
+                            <li>
+                                <strong>Explore and Experiment:</strong> Try different scales, instruments, waveforms, and effects combinations to create unique sounds.
+                            </li>
+                        </ol>
+                        <p>
+                            Press <strong>Ctrl + R</strong> to reset settings or reload the page if you encounter any issues.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Script for Theremin Functionality -->
+    <script>
+        (() => {
+            'use strict';
+
+            // Debug flag
+            const DEBUG = false;
+
+            // Conditional logging function
+            function debugLog(...args) {
+                if (DEBUG) {
+                    console.log(...args);
+                }
+            }
+
+            // Wait until the DOM is fully loaded
+            document.addEventListener('DOMContentLoaded', () => {
+                // Initialize Tone.js Components
+                const synthControllers = []; // Array to hold SynthControllers
+                let currentInstrument = 'synth'; // Current instrument selected
+                let visualizerAnalyser = null; // Tone.js Analyser for visualization
+                const masterGain = new Tone.Gain(Tone.dbToGain(-4)).toDestination(); // Master gain node set to -4 dB
+                debugLog(`Master Gain initialized with gain value: ${masterGain.gain.value}`);
+
+                // Get DOM Elements
+                const startButton = document.getElementById('startButton');
+                const thereminContainer = document.getElementById('thereminContainer');
+
+                const videoElement = document.getElementById('video');
+                const canvasElement = document.getElementById('canvas');
+                const canvasCtx = canvasElement.getContext('2d');
+                const visualizerCanvas = document.getElementById('visualizer');
+                const visualizerCtx = visualizerCanvas.getContext('2d');
+
+                const waveformSelect = document.getElementById('waveform');
+                const instrumentSelect = document.getElementById('instrument');
+                const scaleSelect = document.getElementById('scale');
+                const smoothingSlider = document.getElementById('smoothing');
+                const smoothingValueDisplay = document.getElementById('smoothingValue');
+
+                const toggleReverb = document.getElementById('toggleReverb');
+                const toggleDelay = document.getElementById('toggleDelay');
+                const toggleFilter = document.getElementById('toggleFilter');
+                const toggleMultiHand = document.getElementById('toggleMultiHand'); // New Checkbox for Multi-Hand Mode
+
+                const frequencyDisplay = document.getElementById('frequency');
+                const filterCutoffDisplay = document.getElementById('filterCutoff');
+
+                // Smoothing Variables
+                let smoothingFactor = parseFloat(smoothingSlider.value);
+
+                // Frequency Range
+                const minFreqInput = document.getElementById('minFreq');
+                const maxFreqInput = document.getElementById('maxFreq');
+                let minFreq = parseFloat(minFreqInput.value);
+                let maxFreq = parseFloat(maxFreqInput.value);
+
+                // Scale Definitions
+                const scales = {
+                    'none': [],
+                    'chromatic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+                    'major': [0, 2, 4, 5, 7, 9, 11],
+                    'minor': [0, 2, 3, 5, 7, 8, 10],
+                    'pentatonic': [0, 2, 4, 7, 9]
+                };
+
+                // Define a SynthController class to manage each synth and its effects
+                class SynthController {
+                    constructor(synthClass, masterGain) {
+                        this.synth = new synthClass().connect(this.effectChain = new Tone.Gain().connect(masterGain));
+                        this.filter = null;
+                        this.reverb = null;
+                        this.delay = null;
+                        this.triggered = false;
+                        this.analyser = new Tone.Analyser('fft', 256);
+                        this.effectChain.connect(this.analyser);
+                        debugLog(`SynthController initialized with ${synthClass.name}`);
+                    }
+
+                    applyFilter(cutoff) {
+                        if (toggleFilter.checked) {
+                            if (!this.filter) {
+                                this.filter = new Tone.Filter({
+                                    type: "lowpass",
+                                    frequency: cutoff
+                                }).connect(this.effectChain);
+                                this.synth.disconnect(this.effectChain);
+                                this.synth.connect(this.filter);
+                                debugLog('Filter added.');
+                            } else {
+                                this.filter.frequency.value = cutoff;
+                                debugLog(`Filter cutoff updated to: ${cutoff} Hz`);
+                            }
+                        } else {
+                            if (this.filter) {
+                                this.synth.disconnect(this.filter);
+                                this.filter.disconnect(this.effectChain);
+                                this.filter.dispose();
+                                this.filter = null;
+                                this.synth.connect(this.effectChain);
+                                debugLog('Filter removed.');
+                            }
+                        }
+                    }
+
+                    applyReverb() {
+                        if (toggleReverb.checked) {
+                            if (!this.reverb) {
+                                this.reverb = new Tone.Reverb({
+                                    decay: 1.5,
+                                    preDelay: 0.25
+                                }).connect(this.effectChain);
+                                this.synth.connect(this.reverb);
+                                this.reverb.generate();
+                                debugLog('Reverb added.');
+                            }
+                        } else {
+                            if (this.reverb) {
+                                this.synth.disconnect(this.reverb);
+                                this.reverb.disconnect(this.effectChain);
+                                this.reverb.dispose();
+                                this.reverb = null;
+                                this.synth.connect(this.effectChain);
+                                debugLog('Reverb removed.');
+                            }
+                        }
+                    }
+
+                    applyDelay() {
+                        if (toggleDelay.checked) {
+                            if (!this.delay) {
+                                this.delay = new Tone.FeedbackDelay("8n", 0.5).connect(this.effectChain);
+                                this.synth.connect(this.delay);
+                                debugLog('Delay added.');
+                            }
+                        } else {
+                            if (this.delay) {
+                                this.synth.disconnect(this.delay);
+                                this.delay.disconnect(this.effectChain);
+                                this.delay.dispose();
+                                this.delay = null;
+                                this.synth.connect(this.effectChain);
+                                debugLog('Delay removed.');
+                            }
+                        }
+                    }
+
+                    setFrequency(freq) {
+                        if (this.synth.oscillator && this.synth.oscillator.frequency) {
+                            this.synth.oscillator.frequency.value = freq;
+                            debugLog(`Synth frequency set to: ${freq} Hz`);
+                        } else if (this.synth.frequency) {
+                            this.synth.frequency.value = freq;
+                            debugLog(`Synth frequency set to: ${freq} Hz`);
+                        } else {
+                            console.warn('Synth does not have a directly settable frequency parameter.');
+                        }
+                    }
+
+                    disconnect() {
+                        this.synth.disconnect();
+                        if (this.filter) {
+                            this.filter.disconnect();
+                            this.filter.dispose();
+                            this.filter = null;
+                        }
+                        if (this.reverb) {
+                            this.reverb.disconnect();
+                            this.reverb.dispose();
+                            this.reverb = null;
+                        }
+                        if (this.delay) {
+                            this.delay.disconnect();
+                            this.delay.dispose();
+                            this.delay = null;
+                        }
+                        this.effectChain.disconnect();
+                        debugLog('SynthController disconnected.');
+                    }
+
+                    dispose() {
+                        this.disconnect();
+                        this.synth.dispose();
+                        this.analyser.dispose();
+                        debugLog('SynthController disposed.');
+                    }
+                }
+
+                /**
+                 * Initializes synthesizers based on the selected instrument and Multi-Hand Mode.
+                 * @param {string} instrument - The type of instrument to initialize.
+                 */
+                function initializeSynth(instrument) {
+                    debugLog(`Initializing instrument: ${instrument}`);
+
+                    // Dispose existing SynthControllers
+                    synthControllers.forEach((controller, index) => {
+                        controller.dispose();
+                        debugLog(`SynthController ${index + 1} disposed.`);
+                    });
+                    synthControllers.length = 0; // Clear the array
+
+                    // Synthesizer types mapping
+                    const synthTypes = {
+                        'synth': Tone.Synth,
+                        'amSynth': Tone.AMSynth,
+                        'fmsynth': Tone.FMSynth,
+                        'membraneSynth': Tone.MembraneSynth,
+                        'metalSynth': Tone.MetalSynth,
+                        'monoSynth': Tone.MonoSynth
+                    };
+
+                    const SynthClass = synthTypes[instrument] || Tone.Synth;
+
+                    // Determine the number of synths based on Multi-Hand Mode
+                    const isMultiHand = toggleMultiHand.checked;
+                    const numberOfSynths = isMultiHand ? 4 : 1;
+
+                    // Create SynthControllers
+                    for (let i = 0; i < numberOfSynths; i++) {
+                        try {
+                            const controller = new SynthController(SynthClass, masterGain);
+                            synthControllers.push(controller);
+                            debugLog(`SynthController ${i + 1} initialized: ${SynthClass.name}`);
+                        } catch (error) {
+                            console.error(`Error initializing SynthController ${i + 1}:`, error);
+                        }
+                    }
+
+                    // Apply current effects
+                    synthControllers.forEach(controller => {
+                        controller.applyFilter(1000); // Initial cutoff frequency
+                        controller.applyReverb();
+                        controller.applyDelay();
+                    });
+
+                    // Connect to visualizer
+                    if (isMultiHand) {
+                        visualizerAnalyser = null; // Handle visualizer differently in multi-hand mode
+                    } else if (synthControllers.length > 0) {
+                        visualizerAnalyser = synthControllers[0].analyser;
+                    }
+
+                    debugLog('Synthesizers initialized.');
+                }
+
+                // Function to Map Hand Position to Frequency and Filter Cutoff
+                function mapValues(x, y, frameWidth, frameHeight) {
+                    let freq = minFreq + (x / frameWidth) * (maxFreq - minFreq);
+                    let cutoff = 200 + (y / frameHeight) * (2000 - 200); // Example range from 200 Hz to 2000 Hz
+
+                    // Clamp values
+                    freq = Math.min(Math.max(freq, minFreq), maxFreq);
+                    cutoff = Math.min(Math.max(cutoff, 200), 2000);
+
+                    return { freq, cutoff };
+                }
+
+                // Function to Quantize Frequency to Selected Scale
+                function quantizeFrequency(freq, scaleName) {
+                    if (scaleName === 'none') return freq;
+
+                    const A4 = 440;
+                    const noteNumber = 69 + 12 * Math.log2(freq / A4);
+                    const octave = Math.floor(noteNumber / 12) - 1; // MIDI octave starts at C-1
+                    const scale = scales[scaleName];
+                    if (scale.length === 0) return freq;
+
+                    // Find the nearest note in the scale
+                    let closestInterval = scale.reduce((prev, curr) => {
+                        return Math.abs(curr - (noteNumber % 12)) < Math.abs(prev - (noteNumber % 12)) ? curr : prev;
+                    }, scale[0]);
+
+                    // Handle octave transitions
+                    let quantizedNoteNumber = octave * 12 + closestInterval;
+                    let quantizedFreq = A4 * Math.pow(2, (quantizedNoteNumber - 69) / 12);
+
+                    // Ensure frequency is within min and max bounds
+                    quantizedFreq = Math.min(Math.max(quantizedFreq, minFreq), maxFreq);
+
+                    return quantizedFreq;
+                }
+
+                // Handle Mediapipe Results
+                function onResults(results) {
+                    // Draw the video frame
+                    canvasCtx.save();
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        // Determine the number of hands to process based on Multi-Hand Mode
+                        const isMultiHand = toggleMultiHand.checked;
+                        const handsToProcess = isMultiHand ? results.multiHandLandmarks.slice(0, 4) : [results.multiHandLandmarks[0]];
+                        debugLog(`Processing ${handsToProcess.length} hand(s).`);
+
+                        // Track active hands for cleanup
+                        const activeHandKeys = [];
+
+                        handsToProcess.forEach((landmarks, handIndex) => {
+                            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                            drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 1 });
+
+                            // Use Index Finger Tip for Frequency and Middle Finger Tip for Filter Cutoff
+                            const indexTip = landmarks[8];
+                            const middleTip = landmarks[12];
+
+                            const xFreq = indexTip.x * canvasElement.width;
+                            const yCutoff = middleTip.y * canvasElement.height;
+
+                            // Map positions to frequency and filter cutoff
+                            let { freq, cutoff } = mapValues(xFreq, yCutoff, canvasElement.width, canvasElement.height);
+
+                            // Quantize frequency to selected scale
+                            const selectedScale = scaleSelect.value;
+                            freq = quantizeFrequency(freq, selectedScale);
+
+                            // Assign a unique key for each hand
+                            const handKey = `hand_${handIndex}`;
+                            activeHandKeys.push(handKey);
+
+                            // Initialize or update hand state
+                            if (!handStates[handKey]) {
+                                handStates[handKey] = { prevFreq: 440, prevCutoff: 1000 };
+                            }
+
+                            const { prevFreq, prevCutoff } = handStates[handKey];
+
+                            // Apply smoothing
+                            const smoothFreq = smoothingFactor * freq + (1 - smoothingFactor) * prevFreq;
+                            const smoothCutoff = smoothingFactor * cutoff + (1 - smoothingFactor) * prevCutoff;
+
+                            // Update state
+                            handStates[handKey].prevFreq = smoothFreq;
+                            handStates[handKey].prevCutoff = smoothCutoff;
+
+                            // Trigger synth note and adjust filter cutoff
+                            const controller = synthControllers[handIndex];
+                            if (controller) {
+                                // Apply filter cutoff
+                                controller.applyFilter(smoothCutoff);
+
+                                // Define a minimum frequency threshold to trigger synth
+                                const MIN_FREQ_THRESHOLD = 100; // Example value
+
+                                if (smoothFreq > MIN_FREQ_THRESHOLD) {
+                                    controller.setFrequency(smoothFreq);
+                                    if (!controller.triggered) {
+                                        controller.synth.triggerAttack(smoothFreq);
+                                        controller.triggered = true;
+                                        debugLog(`SynthController ${handIndex + 1} triggered: ${smoothFreq} Hz, Filter Cutoff: ${smoothCutoff} Hz`);
+                                    }
+                                } else {
+                                    controller.synth.triggerRelease();
+                                    controller.triggered = false;
+                                    debugLog(`SynthController ${handIndex + 1} released.`);
+                                }
+                            }
+
+                            // Update display for the first hand
+                            if (handIndex === 0) { // Update displays based on the first hand
+                                frequencyDisplay.innerText = `Frequency: ${Math.round(smoothFreq)} Hz`;
+                                filterCutoffDisplay.innerText = `Filter Cutoff: ${Math.round(smoothCutoff)} Hz`;
+                            }
+
+                            // Draw circles on fingertips for visual feedback
+                            drawFinger(canvasCtx, xFreq, indexTip.y * canvasElement.height, '#0000FF'); // Blue for frequency
+                            drawFinger(canvasCtx, middleTip.x * canvasElement.width, yCutoff, '#FFFF00'); // Yellow for filter cutoff
+                        });
+
+                        // Manage hand states by removing inactive hands
+                        manageHandStates(activeHandKeys);
+                    } else {
+                        // No hands detected; release all synths
+                        synthControllers.forEach((controller, index) => {
+                            controller.synth.triggerRelease();
+                            controller.triggered = false;
+                            debugLog(`SynthController ${index + 1} released.`);
+                        });
+                        frequencyDisplay.innerText = `Frequency: 440 Hz`;
+                        filterCutoffDisplay.innerText = `Filter Cutoff: 1000 Hz`;
+
+                        // Clear all hand states
+                        Object.keys(handStates).forEach(handKey => {
+                            delete handStates[handKey];
+                            debugLog(`Removed state for ${handKey}.`);
+                        });
+                    }
+
+                    canvasCtx.restore();
+                }
+
+                // Helper Function to Draw Finger Position
+                function drawFinger(ctx, x, y, color) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 10, 0, 2 * Math.PI);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                }
+
+                // Audio Visualization
+                function drawVisualizer() {
+                    requestAnimationFrame(drawVisualizer);
+
+                    if (!visualizerAnalyser && synthControllers.length === 0) {
+                        // Analyser not initialized yet
+                        return;
+                    }
+
+                    let dataArray = [];
+
+                    if (synthControllers.length === 1) {
+                        dataArray = synthControllers[0].analyser.getValue();
+                    } else if (synthControllers.length > 1 && !toggleMultiHand.checked) {
+                        // Aggregate data from multiple analyzers
+                        const aggregatedData = synthControllers.map(controller => controller.analyser.getValue());
+                        if (aggregatedData.length === 0) return;
+
+                        // Simple average across analyzers
+                        dataArray = aggregatedData[0].map((_, i) => {
+                            return aggregatedData.reduce((sum, arr) => sum + arr[i], 0) / aggregatedData.length;
+                        });
+                    } else {
+                        // In multi-hand mode, optionally implement a different visualization
+                        // For simplicity, we can skip or implement a separate visualizer
+                        return;
+                    }
+
+                    // Debugging: Check if dataArray has data
+                    if (!dataArray || dataArray.length === 0) {
+                        debugLog('Visualizer data is empty.');
+                        return;
+                    }
+
+                    visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+                    const bufferLength = dataArray.length;
+                    const barWidth = (visualizerCanvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        barHeight = (dataArray[i] + 140) * 2; // Adjusted scaling for better visibility
+
+                        // Dynamic coloring based on frequency amplitude
+                        visualizerCtx.fillStyle = `rgb(${barHeight + 100},50,50)`;
+                        visualizerCtx.fillRect(x, visualizerCanvas.height - barHeight / 2, barWidth, barHeight / 2);
+
+                        x += barWidth + 1;
+                    }
+                }
+
+                // Start the visualizer (only after synthesizer is initialized)
+                function startVisualizer() {
+                    drawVisualizer();
+                    debugLog('Visualizer started.');
+                }
+
+                // Resize Canvas on Window Resize
+                function resizeCanvas() {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    visualizerCanvas.width = visualizerCanvas.clientWidth;
+                    visualizerCanvas.height = visualizerCanvas.clientHeight;
+                    debugLog('Canvas resized.');
+                }
+
+                window.addEventListener('resize', resizeCanvas);
+                videoElement.addEventListener('loadedmetadata', resizeCanvas);
+
+                // Debounce Function
+                function debounce(func, delay) {
+                    let debounceTimer;
+                    return function(...args) {
+                        const context = this;
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => func.apply(context, args), delay);
+                    }
+                }
+
+                // Event Listeners for Controls
+
+                // Waveform Selection
+                waveformSelect.addEventListener('change', (event) => {
+                    const waveform = event.target.value;
+                    debugLog(`Waveform changed to: ${waveform}`);
+                    
+                    synthControllers.forEach((controller, index) => {
+                        if (controller.synth.oscillator) {
+                            controller.synth.oscillator.type = waveform;
+                            debugLog(`SynthController ${index + 1} oscillator type set to: ${waveform}`);
+                        }
+                    });
+                });
+
+                // Instrument Selection
+                instrumentSelect.addEventListener('change', (event) => {
+                    currentInstrument = event.target.value;
+                    debugLog(`Instrument changed to: ${currentInstrument}`);
+                    initializeSynth(currentInstrument);
+                });
+
+                // Scale Selection
+                scaleSelect.addEventListener('change', (event) => {
+                    const scale = event.target.value;
+                    debugLog(`Scale changed to: ${scale}`);
+                });
+
+                // Frequency Range Inputs with Debounce and Validation
+                minFreqInput.addEventListener('input', debounce((event) => {
+                    const value = parseFloat(event.target.value);
+                    if (isNaN(value) || value < 20 || value >= maxFreq) {
+                        event.target.setCustomValidity('Minimum frequency must be a number between 20 Hz and less than the maximum frequency.');
+                    } else {
+                        event.target.setCustomValidity('');
+                        minFreq = value;
+                        debugLog(`Minimum frequency set to: ${minFreq} Hz`);
+                    }
+                }, 300));
+
+                maxFreqInput.addEventListener('input', debounce((event) => {
+                    const value = parseFloat(event.target.value);
+                    if (isNaN(value) || value > 20000 || value <= minFreq) {
+                        event.target.setCustomValidity('Maximum frequency must be a number greater than the minimum frequency and up to 20000 Hz.');
+                    } else {
+                        event.target.setCustomValidity('');
+                        maxFreq = value;
+                        debugLog(`Maximum frequency set to: ${maxFreq} Hz`);
+                    }
+                }, 300));
+
+                // Smoothing Factor Slider with Debounce
+                smoothingSlider.addEventListener('input', debounce((event) => {
+                    const value = parseFloat(event.target.value);
+                    if (!isNaN(value)) {
+                        smoothingFactor = value;
+                        smoothingValueDisplay.innerText = smoothingFactor.toFixed(2);
+                        debugLog(`Smoothing factor set to: ${smoothingFactor}`);
+                    }
+                }, 100));
+
+                // Multi-Hand Mode Toggle
+                toggleMultiHand.addEventListener('change', () => {
+                    const isMultiHand = toggleMultiHand.checked;
+                    debugLog(`Multi-Hand Mode: ${isMultiHand ? 'Enabled' : 'Disabled'}`);
+                    initializeSynth(currentInstrument); // Reinitialize synths based on the mode
+                });
+
+                // Effects Toggle with SynthController Integration
+                toggleReverb.addEventListener('change', () => {
+                    synthControllers.forEach((controller, index) => {
+                        controller.applyReverb();
+                    });
+                    debugLog(`Reverb toggle: ${toggleReverb.checked}`);
+                });
+
+                toggleDelay.addEventListener('change', () => {
+                    synthControllers.forEach((controller, index) => {
+                        controller.applyDelay();
+                    });
+                    debugLog(`Delay toggle: ${toggleDelay.checked}`);
+                });
+
+                toggleFilter.addEventListener('change', () => {
+                    synthControllers.forEach((controller, index) => {
+                        if (toggleFilter.checked) {
+                            controller.applyFilter(1000); // Set a default cutoff frequency
+                        } else {
+                            controller.applyFilter(0); // The SynthController's method handles removal
+                        }
+                    });
+                    debugLog(`Filter toggle: ${toggleFilter.checked}`);
+                });
+
+                // Setup Mediapipe Hands for Hand Tracking
+                const hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+
+                hands.setOptions({
+                    maxNumHands: 4, // Maximum number of hands to detect
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.7
+                });
+
+                hands.onResults(onResults);
+                debugLog('Mediapipe Hands initialized.');
+
+                // Function to Track Hand States
+                const handStates = {}; // Object to hold state per hand
+
+                // Initialize Synthesizers on Start
+                startButton.addEventListener('click', async () => {
+                    try {
+                        debugLog('Start Theremin button clicked.');
+
+                        // Resume Audio Context if suspended
+                        if (Tone.context.state !== 'running') {
+                            await Tone.start();
+                            debugLog('Tone.js audio context started.');
+                        }
+
+                        // Initialize Synthesizers
+                        initializeSynth(currentInstrument);
+
+                        // Initialize Mediapipe Hands Camera
+                        const camera = new Camera(videoElement, {
+                            onFrame: async () => {
+                                try {
+                                    await hands.send({ image: videoElement });
+                                } catch (err) {
+                                    console.error('Error sending image to Mediapipe Hands:', err);
+                                }
+                            },
+                            width: 640,
+                            height: 480
+                        });
+                        camera.start();
+                        debugLog('Camera started.');
+
+                        // Start the visualizer
+                        startVisualizer();
+
+                        // Show the theremin controls and video
+                        thereminContainer.classList.remove('d-none');
+                        startButton.classList.add('d-none');
+                        debugLog('Theremin interface displayed.');
+                    } catch (error) {
+                        if (error.name === 'NotAllowedError') {
+                            alert('Camera access was denied. Please enable it in your browser settings and try again.');
+                        } else if (error.name === 'NotFoundError') {
+                            alert('No camera device found. Please connect a webcam and try again.');
+                        } else {
+                            alert('An unexpected error occurred. Please try again.');
+                        }
+                        console.error('Error accessing camera:', error);
+                    }
+                });
+
+                // Setup a separate visualizer for multi-hand mode
+                function startVisualizer() {
+                    drawVisualizer();
+                    debugLog('Visualizer started.');
+                }
+
+                // Manage Hand States by removing inactive hands
+                function manageHandStates(activeHandKeys) {
+                    Object.keys(handStates).forEach(handKey => {
+                        if (!activeHandKeys.includes(handKey)) {
+                            delete handStates[handKey];
+                            debugLog(`Removed state for ${handKey}.`);
+                        }
+                    });
+                }
+
+                // Throttle hand tracking updates to improve performance
+                let lastFrameTime = 0;
+                const FRAME_INTERVAL = 100; // in ms
+
+                function throttledOnResults(results) {
+                    const now = Date.now();
+                    if (now - lastFrameTime < FRAME_INTERVAL) {
+                        return; // Skip this frame
+                    }
+                    lastFrameTime = now;
+                    onResults(results);
+                }
+
+                hands.onResults(throttledOnResults);
+            });
+        })();
+    </script>
+    
+    <!-- Bootstrap JS Bundle for Interactive Components -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
